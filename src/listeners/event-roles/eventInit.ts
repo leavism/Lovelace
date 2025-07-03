@@ -7,6 +7,7 @@
 
 import { Listener, container } from '@sapphire/framework';
 import { Events } from 'discord.js';
+import { yellow, cyan } from 'colorette';
 
 /**
  * Listener that handles the Discord client ready event.
@@ -34,13 +35,39 @@ export class OnClientReady extends Listener {
 	 * Fetches all scheduled events from the configured guild and processes them in batch
 	 */
 	public override async run() {
-		const { client, scheduledEventsService } = container;
-		// TODO: This is one of the rare occasions where we hard code the bot to
-		// only work for the ACM blue Discord server. Ideally we'd make this more
-		// dynamic but that requires more planning than I'm willing to do alone
-		// right now.
+		const { client, scheduledEventsService, customRoleQueue } = container;
+		// TODO: Only works for the ACM blue Discord server. Make it work for
+    // multiple servers?
+
+    // EventInit runs on bot startup, nothing is cached so we need to
+    // fetch server, events, and members
 		const acmguild = await client.guilds.fetch(`${process.env.GUILD}`);
 		const events = await acmguild.scheduledEvents.fetch();
-		await scheduledEventsService.batchProcessEvents(events);
+		const processedEvents = await scheduledEventsService.batchProcessEvents(events);
+    for (const event of processedEvents) {
+      if (!event) {
+				client.logger.error(
+					`Failed to find scheduled event ${yellow(event.name)}[${cyan(event.id)}].`,
+					'\nSkipping this event for event initialization.',
+				);
+        continue;
+      }
+      const subscribers = await event.fetchSubscribers({withMember: true});
+      for (const [_userID, subscriber] of subscribers) {
+        let { member } = subscriber;
+        if (!member) {
+			  	client.logger.error(
+				  	`Failed to find member ${yellow(member.name)}[${cyan(member.id)}] in guild ${acmguild.name}.`,
+				  	'\nSkipping this member for event initialization.',
+				  );
+          continue;
+        }
+        member = await member.fetch();
+        const hasRole = member.roles.cache.find(role => role.id === event.customRoleId)
+        if (!hasRole) {
+          customRoleQueue.queueAssignment(event, member.user)
+        }
+      }
+    }
 	}
 }

@@ -19,10 +19,9 @@ type customRoleQueuesProp = {
 };
 
 /**
- * This queue processes the assignment of custom roles to people
- * that enrolled into a Discord scheduled event. We use this queue
- * to prevent race conditions with the database by handling role
- * assignments asynchronously.
+ * This queue processes the assignment of custom roles to people that enrolled into a Discord
+ * scheduled event. We use this queue to prevent race conditions with the database by handling
+ * role assignments asynchronously.
  */
 export class CustomRoleQueue {
 	/**
@@ -125,7 +124,7 @@ export class CustomRoleQueue {
 		try {
 			const { database, client } = container;
 			for (const [eventId, queue] of this.eventQueues.entries()) {
-				// delete empty queues
+				// Delete empty queues
 				if (queue.length === 0) {
 					this.eventQueues.delete(eventId);
 					continue;
@@ -154,8 +153,8 @@ export class CustomRoleQueue {
 					continue;
 				}
 
-				// Errors in finding the guild, role, or member does not increment
-				// the attempts count.
+				// Errors in finding the guild, role, or member does not increment the attempts count.
+        // Only increments when the db entry isn't found.
 				for (const item of queue) {
 					const { scheduledEvent, user } = item;
 					try {
