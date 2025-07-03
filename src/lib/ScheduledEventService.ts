@@ -48,7 +48,7 @@ export class ScheduleEventsService {
 				return false;
 			}
 			client.logger.info(
-				`Created role ${yellow(role.name)} associated with scheduled event ${yellow(scheduledEvent.name)}.`,
+				`Created role ${yellow(role.name)} associated with scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
 			);
 			const newDbEntry = await this.createEventDBEntry(scheduledEvent, role.id);
 			if (!newDbEntry) {
@@ -106,8 +106,9 @@ export class ScheduleEventsService {
 	): Promise<Role | undefined> {
 		const startTime = scheduledEvent.scheduledStartTimestamp || new Date(0);
 		const timestamp = new Timestamp('MMM-DD HH:mm');
+    console.log(`Making ${reasonableTruncate(scheduledEvent.name)} [${timestamp.display(startTime)}]`)
 		const role = await scheduledEvent.guild?.roles.create({
-			name: `${reasonableTruncate(scheduledEvent.name)} [${timestamp.display(startTime)}]`,
+			name: `${reasonableTruncate(scheduledEvent.name)} [${timestamp.display(startTime)}]huy`,
 			mentionable: true,
 			reason: `Role for the scheduled event ${scheduledEvent.name}.`,
 			permissions: [], // Empty permissions array indicates no additional permissions for role
@@ -133,8 +134,6 @@ export class ScheduleEventsService {
 		// Once db entry for event is created, mark it as ready in custom role assignment queue
 		// for processing, then queue the event author.
 		if (response.affectedRows > 0) {
-			if (scheduledEvent.creator)
-				customRoleQueue.queueAssignment(scheduledEvent, scheduledEvent.creator);
 			customRoleQueue.processQueues();
 			return true;
 		} else {
