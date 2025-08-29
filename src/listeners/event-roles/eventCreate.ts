@@ -38,7 +38,9 @@ export class OnEventCreate extends Listener {
 	public override async run(scheduledEvent: GuildScheduledEvent) {
 		const { client, scheduledEventsService } = container;
 
-		client.logger.info(`New scheduled event created ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`);
+		client.logger.info(
+			`New scheduled event created ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+		);
 		return await scheduledEventsService.processEvent(scheduledEvent);
 	}
 }

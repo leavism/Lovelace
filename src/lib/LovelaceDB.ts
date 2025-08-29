@@ -101,7 +101,9 @@ export class LovelaceDB {
 	 * @param eventId - The ID of the event to find
 	 * @returns The first matching event or null if not found
 	 */
-	public async findScheduledEvent(eventId: string): Promise<ScheduledEventDBEntry | null> {
+	public async findScheduledEvent(
+		eventId: string,
+	): Promise<ScheduledEventDBEntry | null> {
 		const results = await this.db
 			.select()
 			.from(schema.scheduledEvents)

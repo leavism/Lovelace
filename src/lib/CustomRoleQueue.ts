@@ -137,7 +137,7 @@ export class CustomRoleQueue {
 						item.attempts++;
 						// Once max attempts is hit, log failure and remove from queue
 						// TODO: Not the perfect solution, but removing from queue after hitting
-						// max attempts will prevent contiuous queries to the database. However, we
+						// max attempts will prevent continuous queries to the database. However, we
 						// need to record somewhere, other than the logs, who didn't get processed
 						// for a role. At this current point, removing them from the queue
 						// means they just never get the role.
@@ -154,7 +154,7 @@ export class CustomRoleQueue {
 				}
 
 				// Errors in finding the guild, role, or member does not increment the attempts count.
-        // Only increments when the db entry isn't found.
+				// Only increments when the db entry isn't found.
 				for (const item of queue) {
 					const { scheduledEvent, user } = item;
 					try {

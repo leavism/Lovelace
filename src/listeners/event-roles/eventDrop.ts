@@ -56,11 +56,11 @@ export class OnEventDrop extends Listener {
 			customRoleQueue.removeAssignment(scheduledEvent, user);
 
 			const dbEvent = await database.findScheduledEvent(scheduledEvent.id);
-      if (!dbEvent) {
+			if (!dbEvent) {
 				return client.logger.error(
 					`Failed to find a database entry for ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}\]`,
 				);
-      }
+			}
 
 			const role = await scheduledEvent.guild.roles.fetch(dbEvent.roleId);
 			if (!role) {

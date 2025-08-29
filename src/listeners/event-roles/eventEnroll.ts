@@ -50,6 +50,6 @@ export class OnEventEnroll extends Listener {
 			);
 		}
 
-    customRoleQueue.queueAssignment(scheduledEvent, user);
+		customRoleQueue.queueAssignment(scheduledEvent, user);
 	}
 }
