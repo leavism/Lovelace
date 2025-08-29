@@ -19,11 +19,11 @@ export class ScheduleEventsService {
 	/**
 	 * Processes a single scheduled event, creating a custom role and database entry.
 	 * @param scheduledEvent - The Discord scheduled event to process.
-	 * @returns A promise that resolves to the scheduled event with the custom role ID if successful, null otherwise.
+	 * @returns A promise that resolves to the scheduled event if successful, null otherwise.
 	 */
 	public async processEvent(
 		scheduledEvent: GuildScheduledEvent,
-	): Promise<(GuildScheduledEvent & { customRoleId: string }) | null> {
+	): Promise<GuildScheduledEvent | null> {
 		const { client, database } = container;
 		try {
 			if (!scheduledEvent.guild) {
@@ -33,13 +33,12 @@ export class ScheduleEventsService {
 				);
 				return null;
 			}
-			const dbEntry = await database.findScheduledEvent(scheduledEvent.id);
-			if (dbEntry) {
+			const dbEvent = await database.findScheduledEvent(scheduledEvent.id);
+			if (dbEvent) {
 				client.logger.info(
 					`Scheduled event ${yellow(scheduledEvent.name)} already exists in the database. Skipping processing in scheduled events service.`,
 				);
-				scheduledEvent.customRoleId = dbEntry.roleId;
-				return scheduledEvent as GuildScheduledEvent & { customRoleId: string };
+				return scheduledEvent;
 			}
 			const role = await this.createCustomRole(scheduledEvent);
 			if (!role) {
@@ -62,8 +61,7 @@ export class ScheduleEventsService {
 				`Wrote scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}] into the database.`,
 				'Marked scheduled event ready for custom role assignment queue.',
 			);
-			scheduledEvent.customRoleId = role.id;
-			return scheduledEvent as GuildScheduledEvent & { customRoleId: string };
+			return scheduledEvent;
 		} catch (error) {
 			client.logger.warn(
 				'Failed to process a scheduled event in the scheduled events service.',
@@ -76,17 +74,17 @@ export class ScheduleEventsService {
 	/**
 	 * Processes multiple scheduled events in batch.
 	 * @param events - Map of Discord scheduled events to process
-	 * @returns A promise that resolves to a map of event IDs to success/failure status
+	 * @returns A promise that resolves to an array of successfully processed events (or null for failures)
 	 */
 	public async batchProcessEvents(
 		events: Map<string, GuildScheduledEvent>,
-	): Promise<((GuildScheduledEvent & { customRoleId: string }) | null )[]> {
+	): Promise<(GuildScheduledEvent | null)[]> {
 		const { client } = container;
-		const result: ((GuildScheduledEvent & { customRoleId: string }) | null )[] = []
+		const result: (GuildScheduledEvent | null)[] = [];
 		for (const [_id, event] of events) {
 			try {
-				const customEvent = await this.processEvent(event);
-				result.push(customEvent);
+				const processedEvent = await this.processEvent(event);
+				result.push(processedEvent);
 			} catch (error) {
 				client.logger.warn(
 					`Failed to process a scheduled event ${yellow(event.name)}[${cyan(event.id)}] in the scheduled events service.`,
@@ -99,6 +97,41 @@ export class ScheduleEventsService {
 	}
 
 	/**
+	 * Gets the role ID associated with a scheduled event from the database.
+	 * @param eventId - The Discord scheduled event ID
+	 * @returns Promise resolving to the role ID or null if not found
+	 */
+	public async getEventRoleId(eventId: string): Promise<string | null> {
+		const { database } = container;
+		const dbEvent = await database.findScheduledEvent(eventId);
+		return dbEvent?.roleId || null;
+	}
+
+	/**
+	 * Gets the role object associated with a scheduled event.
+	 * @param scheduledEvent - The Discord scheduled event
+	 * @returns Promise resolving to the Role object or null if not found
+	 */
+	public async getEventRole(
+		scheduledEvent: GuildScheduledEvent,
+	): Promise<Role | null> {
+		if (!scheduledEvent.guild) return null;
+
+		const roleId = await this.getEventRoleId(scheduledEvent.id);
+		if (!roleId) return null;
+
+		try {
+			return await scheduledEvent.guild.roles.fetch(roleId);
+		} catch (error) {
+			container.client.logger.error(
+				`Failed to fetch role ${roleId} for event ${scheduledEvent.name}[${scheduledEvent.id}]`,
+				error,
+			);
+			return null;
+		}
+	}
+
+	/**
 	 * Creates a custom role for a scheduled event.
 	 * @param scheduledEvent - The Discord scheduled event to create a role for
 	 * @returns A promise that resolves to the created role, or undefined if creation failed
@@ -106,30 +139,30 @@ export class ScheduleEventsService {
 	private async createCustomRole(
 		scheduledEvent: GuildScheduledEvent,
 	): Promise<Role | undefined> {
-    let name: string;
-    if (scheduledEvent.recurrenceRule == null) {
-      const startTime = scheduledEvent.scheduledStartTimestamp || new Date(0);
-      const timestamp = new Timestamp('MMM-DD HH:mm');
-      name = `${reasonableTruncate(scheduledEvent.name)} [${timestamp.display(startTime)}]`;
-    } else {
-      const { frequency } = scheduledEvent.recurrenceRule;
-      let freqString = "";
-      switch (frequency) {
-         case 0:
-           freqString = "Yearly"
-           break;
-        case 1:
-          freqString = "Monthly"
-          break;
-        case 2:
-          freqString = "Weekly"
-          break;
-        case 3:
-          freqString = "Daily"
-          break;
-       }
-      name = `${reasonableTruncate(scheduledEvent.name)} [${freqString}]`;
-    }
+		let name: string;
+		if (scheduledEvent.recurrenceRule == null) {
+			const startTime = scheduledEvent.scheduledStartTimestamp || new Date(0);
+			const timestamp = new Timestamp('MMM-DD HH:mm');
+			name = `${reasonableTruncate(scheduledEvent.name)} [${timestamp.display(startTime)}]`;
+		} else {
+			const { frequency } = scheduledEvent.recurrenceRule;
+			let freqString = '';
+			switch (frequency) {
+				case 0:
+					freqString = 'Yearly';
+					break;
+				case 1:
+					freqString = 'Monthly';
+					break;
+				case 2:
+					freqString = 'Weekly';
+					break;
+				case 3:
+					freqString = 'Daily';
+					break;
+			}
+			name = `${reasonableTruncate(scheduledEvent.name)} [${freqString}]`;
+		}
 		const role = await scheduledEvent.guild?.roles.create({
 			name: name,
 			mentionable: true,

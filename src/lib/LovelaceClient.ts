@@ -47,8 +47,3 @@ declare module '@sapphire/pieces' {
 		scheduledEventsService: ScheduleEventsService;
 	}
 }
-declare module 'discord.js' {
-    interface GuildScheduledEvent {
-        customRoleId?: string; // Make it optional if it might not always be present
-    }
-}
