@@ -19,10 +19,9 @@ type customRoleQueuesProp = {
 };
 
 /**
- * This queue processes the assignment of custom roles to people
- * that enrolled into a Discord scheduled event. We use this queue
- * to prevent race conditions with the database by handling role
- * assignments asynchronously.
+ * This queue processes the assignment of custom roles to people that enrolled into a Discord
+ * scheduled event. We use this queue to prevent race conditions with the database by handling
+ * role assignments asynchronously.
  */
 export class CustomRoleQueue {
 	/**
@@ -125,7 +124,7 @@ export class CustomRoleQueue {
 		try {
 			const { database, client } = container;
 			for (const [eventId, queue] of this.eventQueues.entries()) {
-				// delete empty queues
+				// Delete empty queues
 				if (queue.length === 0) {
 					this.eventQueues.delete(eventId);
 					continue;
@@ -138,7 +137,7 @@ export class CustomRoleQueue {
 						item.attempts++;
 						// Once max attempts is hit, log failure and remove from queue
 						// TODO: Not the perfect solution, but removing from queue after hitting
-						// max attempts will prevent contiuous queries to the database. However, we
+						// max attempts will prevent continuous queries to the database. However, we
 						// need to record somewhere, other than the logs, who didn't get processed
 						// for a role. At this current point, removing them from the queue
 						// means they just never get the role.
@@ -154,8 +153,8 @@ export class CustomRoleQueue {
 					continue;
 				}
 
-				// Errors in finding the guild, role, or member does not increment
-				// the attempts count.
+				// Errors in finding the guild, role, or member does not increment the attempts count.
+				// Only increments when the db entry isn't found.
 				for (const item of queue) {
 					const { scheduledEvent, user } = item;
 					try {

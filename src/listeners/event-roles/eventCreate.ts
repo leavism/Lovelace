@@ -6,13 +6,13 @@
 
 import { Listener, container } from '@sapphire/framework';
 import { Events, GuildScheduledEvent } from 'discord.js';
+import { cyan, yellow } from 'colorette';
 
 /**
  * Listener that handles the creation of Discord scheduled events.
  * Performs setup tasks including:
  * - Creating an custom role associated with the event
  * - Creating a database entry to track the event and custom role
- * - Queue event author to get the custom role
  */
 export class OnEventCreate extends Listener {
 	/**
@@ -38,7 +38,9 @@ export class OnEventCreate extends Listener {
 	public override async run(scheduledEvent: GuildScheduledEvent) {
 		const { client, scheduledEventsService } = container;
 
-		client.logger.info(`New scheduled event created ${scheduledEvent.name}.`);
+		client.logger.info(
+			`New scheduled event created ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+		);
 		return await scheduledEventsService.processEvent(scheduledEvent);
 	}
 }

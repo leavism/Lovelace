@@ -1,4 +1,5 @@
 import { mysqlTable, int, varchar } from 'drizzle-orm/mysql-core';
+import { InferSelectModel } from 'drizzle-orm';
 
 export const users = mysqlTable('users', {
 	id: int('id').autoincrement().primaryKey(),
@@ -11,3 +12,5 @@ export const scheduledEvents = mysqlTable('scheduled_events', {
 	eventId: varchar('event_id', { length: 32 }).notNull().unique(),
 	roleId: varchar('role_id', { length: 32 }).notNull().unique(),
 });
+
+export type ScheduledEventDBEntry = InferSelectModel<typeof scheduledEvents>;

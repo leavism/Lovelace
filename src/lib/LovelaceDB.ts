@@ -8,6 +8,7 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import { eq } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
 import * as schema from '../db/schema/schema';
+import { ScheduledEventDBEntry } from '../db/schema/schema';
 
 /**
  * Singleton database connector that should only be initialized inside LovelaceClient.
@@ -100,7 +101,9 @@ export class LovelaceDB {
 	 * @param eventId - The ID of the event to find
 	 * @returns The first matching event or null if not found
 	 */
-	public async findScheduledEvent(eventId: string) {
+	public async findScheduledEvent(
+		eventId: string,
+	): Promise<ScheduledEventDBEntry | null> {
 		const results = await this.db
 			.select()
 			.from(schema.scheduledEvents)

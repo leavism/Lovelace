@@ -54,7 +54,14 @@ export class OnEventDrop extends Listener {
 			}
 
 			customRoleQueue.removeAssignment(scheduledEvent, user);
+
 			const dbEvent = await database.findScheduledEvent(scheduledEvent.id);
+			if (!dbEvent) {
+				return client.logger.error(
+					`Failed to find a database entry for ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}\]`,
+				);
+			}
+
 			const role = await scheduledEvent.guild.roles.fetch(dbEvent.roleId);
 			if (!role) {
 				return client.logger.error(
@@ -70,6 +77,7 @@ export class OnEventDrop extends Listener {
 					'\nCannot proceed with removing event role from member.',
 				);
 			}
+
 			// Attempts to remove the role whether the member has it or not, no error regardless.
 			// No use in checking first if no error is thrown, because that'd just be an additional call to Discord.
 			await member.roles.remove(role);
