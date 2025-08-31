@@ -21,10 +21,9 @@ export class LovelaceDB {
    */
   private static instance: LovelaceDB | null = null;
   /**
-   * Stores the MySQL connection.
+   * Stores the MySQL connection pool.
    */
-  private static mysqlConnection: mysql.Connection | null = null;
-
+  private static mysqlPool: mysql.Pool | null = null;
   /**
    * The Drizzle ORM database instance.
    */
@@ -37,8 +36,8 @@ export class LovelaceDB {
    * @constructor
    * @param connection - An active MySQL connection
    */
-  private constructor(connection: mysql.Connection) {
-    this.db = drizzle({ client: connection, schema, mode: 'default' });
+  private constructor(pool: mysql.Pool) {
+    this.db = drizzle({ client: pool, schema, mode: 'default' });
   }
 
   /**
@@ -50,10 +49,10 @@ export class LovelaceDB {
    */
   public static async getInstance(): Promise<LovelaceDB> {
     if (!LovelaceDB.instance) {
-      LovelaceDB.mysqlConnection = await mysql.createConnection({
+      LovelaceDB.mysqlPool = mysql.createPool({
         uri: process.env.DATABASE_URL,
       });
-      LovelaceDB.instance = new LovelaceDB(LovelaceDB.mysqlConnection);
+      LovelaceDB.instance = new LovelaceDB(LovelaceDB.mysqlPool);
     }
     return LovelaceDB.instance;
   }
@@ -64,8 +63,9 @@ export class LovelaceDB {
    * @async
    */
   public static async destroy() {
-    if (LovelaceDB.mysqlConnection) {
-      await LovelaceDB.mysqlConnection.end();
+    if (LovelaceDB.mysqlPool) {
+      await LovelaceDB.mysqlPool.end();
+      LovelaceDB.mysqlPool = null;
       LovelaceDB.instance = null;
     }
   }
