@@ -2,8 +2,8 @@
 process.env.NODE_ENV ??= 'development';
 
 import {
-	ApplicationCommandRegistries,
-	RegisterBehavior,
+  ApplicationCommandRegistries,
+  RegisterBehavior,
 } from '@sapphire/framework';
 import '@sapphire/plugin-api/register';
 import '@sapphire/plugin-editable-commands/register';
@@ -17,7 +17,7 @@ import { srcDir } from './constants';
 
 // Set default behavior to bulk overwrite
 ApplicationCommandRegistries.setDefaultBehaviorWhenNotIdentical(
-	RegisterBehavior.BulkOverwrite,
+  RegisterBehavior.BulkOverwrite,
 );
 
 // Read env var
@@ -30,7 +30,7 @@ inspect.defaultOptions.depth = 1;
 colorette.createColors({ useColor: true });
 
 declare module '@skyra/env-utilities' {
-	interface Env {
-		OWNERS: ArrayString;
-	}
+  interface Env {
+    OWNERS: ArrayString;
+  }
 }

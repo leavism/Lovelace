@@ -15,32 +15,32 @@ import { cyan, yellow } from 'colorette';
  * - Creating a database entry to track the event and custom role
  */
 export class OnEventCreate extends Listener {
-	/**
-	 * Creates a new OnEventCreate listener
-	 * @param context - The loader context
-	 * @param options - The listener options
-	 */
-	public constructor(
-		context: Listener.LoaderContext,
-		options: Listener.Options,
-	) {
-		super(context, {
-			...options,
-			event: Events.GuildScheduledEventCreate,
-		});
-	}
+  /**
+   * Creates a new OnEventCreate listener
+   * @param context - The loader context
+   * @param options - The listener options
+   */
+  public constructor(
+    context: Listener.LoaderContext,
+    options: Listener.Options,
+  ) {
+    super(context, {
+      ...options,
+      event: Events.GuildScheduledEventCreate,
+    });
+  }
 
-	/**
-	 * Handles the scheduled event creation
-	 * Creates a role for the event, records it in the database, and queues the event creator for enrollment
-	 * @param scheduledEvent - The newly created scheduled event
-	 */
-	public override async run(scheduledEvent: GuildScheduledEvent) {
-		const { client, scheduledEventsService } = container;
+  /**
+   * Handles the scheduled event creation
+   * Creates a role for the event, records it in the database, and queues the event creator for enrollment
+   * @param scheduledEvent - The newly created scheduled event
+   */
+  public override async run(scheduledEvent: GuildScheduledEvent) {
+    const { client, scheduledEventsService } = container;
 
-		client.logger.info(
-			`New scheduled event created ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
-		);
-		return await scheduledEventsService.processEvent(scheduledEvent);
-	}
+    client.logger.info(
+      `New scheduled event created ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+    );
+    return await scheduledEventsService.processEvent(scheduledEvent);
+  }
 }
