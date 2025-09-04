@@ -140,9 +140,10 @@ export class ScheduleEventsService {
     scheduledEvent: GuildScheduledEvent,
   ): Promise<Role | undefined> {
     let name: string;
-    if (scheduledEvent.recurrenceRule == null) {
-      const startTime = scheduledEvent.scheduledStartTimestamp || new Date(0);
-      const timestamp = new Timestamp('MMM-DD HH:mm');
+    // Determine datetime or recurrency for role name
+    if (!scheduledEvent.recurrenceRule) {
+      const startTime = scheduledEvent.scheduledStartAt || new Date(0);
+      const timestamp = new Timestamp('MMM-DD HH:mm')
       name = `${reasonableTruncate(scheduledEvent.name)} [${timestamp.display(startTime)}]`;
     } else {
       const { frequency } = scheduledEvent.recurrenceRule;
