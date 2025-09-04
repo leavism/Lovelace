@@ -46,7 +46,7 @@ export class OnEventDelete extends Listener {
         );
       }
       customRoleQueue.clearEventQueue(scheduledEvent);
-      const dbEvent = await database.findScheduledEvent(scheduledEvent.id);
+      const dbEvent = await database.getScheduledEvent(scheduledEvent.id);
       if (!dbEvent) {
         return client.logger.error(
           `Failed to find a database entry for ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}]`,

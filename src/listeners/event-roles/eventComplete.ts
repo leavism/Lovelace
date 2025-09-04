@@ -54,7 +54,7 @@ export class OnEventComplete extends Listener {
       }
 
       customRoleQueue.clearEventQueue(newScheduledEvent);
-      const dbEvent = await database.findScheduledEvent(newScheduledEvent.id);
+      const dbEvent = await database.getScheduledEvent(newScheduledEvent.id);
       if (!dbEvent) {
         return client.logger.error(
           `Failed to find a database entry for ${yellow(newScheduledEvent.name)}[${cyan(newScheduledEvent.id)}\]`,

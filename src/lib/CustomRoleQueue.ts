@@ -21,7 +21,7 @@ type customRoleQueuesProp = {
 /**
  * This queue processes the assignment of custom roles to people that enrolled into a Discord
  * scheduled event. We use this queue to prevent race conditions with the database by handling
- * role assignments asynchronously.
+ * finding the role and assigning it asynchronously.
  */
 export class CustomRoleQueue {
   /**
@@ -129,7 +129,7 @@ export class CustomRoleQueue {
           this.eventQueues.delete(eventId);
           continue;
         }
-        const dbEvent = await database.findScheduledEvent(eventId);
+        const dbEvent = await database.getScheduledEvent(eventId);
         // DB entry for event not ready, log attempt and try again
         if (!dbEvent) {
           // Increment attempt and then skip the entry
