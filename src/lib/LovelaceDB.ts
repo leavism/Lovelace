@@ -4,7 +4,7 @@
  * This class provides a centralized interface for database operations.
  */
 
-import { container } from '@sapphire/framework';
+// import { container } from '@sapphire/framework';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { eq } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
@@ -102,7 +102,7 @@ export class LovelaceDB {
    * @param eventId - The ID of the event to find
    * @returns The first matching event or null if not found
    */
-  public async getScheduledEvent(
+  public async findScheduledEvent(
     eventId: string,
   ): Promise<ScheduledEventDBEntry | null> {
     const results = await this.db

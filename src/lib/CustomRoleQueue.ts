@@ -129,7 +129,7 @@ export class CustomRoleQueue {
           this.eventQueues.delete(eventId);
           continue;
         }
-        const dbEvent = await database.getScheduledEvent(eventId);
+        const dbEvent = await database.findScheduledEvent(eventId);
         // DB entry for event not ready, log attempt and try again
         if (!dbEvent) {
           // Increment attempt and then skip the entry
