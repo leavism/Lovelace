@@ -2,7 +2,7 @@ import { SapphireClient, container } from '@sapphire/framework';
 import { ClientOptions } from 'discord.js';
 import { LovelaceDB } from './LovelaceDB';
 import { CustomRoleQueue } from './CustomRoleQueue';
-import { ScheduleEventsService } from './ScheduledEventService';
+import { ScheduledEventsService } from './ScheduledEventService';
 
 /**
  * The base client for Lovelace that extends SapphireClient. The database connection is initialize and destroyed
@@ -26,7 +26,7 @@ export class LovelaceClient extends SapphireClient {
   public override async login(token?: string): Promise<string> {
     container.database = await LovelaceDB.getInstance();
     container.customRoleQueue = new CustomRoleQueue();
-    container.scheduledEventsService = new ScheduleEventsService();
+    container.scheduledEventsService = new ScheduledEventsService();
     return super.login(token);
   }
 
@@ -44,6 +44,6 @@ declare module '@sapphire/pieces' {
   interface Container {
     database: LovelaceDB;
     customRoleQueue: CustomRoleQueue;
-    scheduledEventsService: ScheduleEventsService;
+    scheduledEventsService: ScheduledEventsService;
   }
 }

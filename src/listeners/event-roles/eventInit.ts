@@ -6,9 +6,10 @@
  */
 
 import { Listener, container } from '@sapphire/framework';
-import { Events, Guild, GuildScheduledEvent, GuildScheduledEventStatus } from 'discord.js';
+import { Events, Guild } from 'discord.js';
 import { yellow, cyan } from 'colorette';
 import { createListenerLogger, type LovelaceLogger } from '../../lib/LovelaceLogger';
+import { ProcessEventResult } from '../../lib/ScheduledEventService';
 
 /**
  * The logic to reconcile scheduled events and their custom roles.
@@ -62,15 +63,13 @@ export class EventInit extends Listener {
     }
 
     // Push all events through the scheduled events service to check for a database entry and custom role
-    const processedEvents: (GuildScheduledEvent<GuildScheduledEventStatus> | null)[] =
-      await scheduledEventsService.batchProcessEvents(eventsCollection);
+    const processedEvents: ProcessEventResult[] = await scheduledEventsService.batchProcessEvents(eventsCollection);
 
     // Reconcile any changes from the last time the bot was online
-    for (const event of processedEvents) {
+    for (const { event, error } of processedEvents) {
       if (!event) {
         this.logger.error(
-          `Failed to process scheduled event during initialization.`,
-          '\nSkipping this event for event initialization.',
+          'Failed to process scheduled event during initialization. Skipping this event for event initialization.', error
         );
         continue;
       }
