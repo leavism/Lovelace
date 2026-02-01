@@ -9,7 +9,7 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import { eq } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
 import * as schema from '../db/schema/schema';
-import { ScheduledEventDBEntry } from '../db/schema/schema';
+import { ScheduledEventDBEntry, FailedAssignmentDBEntry } from '../db/schema/schema';
 
 /**
  * Singleton database connector that should only be initialized inside LovelaceClient.
@@ -122,6 +122,78 @@ export class LovelaceDB {
     const result = await this.db
       .delete(schema.scheduledEvents)
       .where(eq(schema.scheduledEvents.eventId, eventId));
+    return result[0] || null;
+  }
+
+  // ==================== Failed Assignments (Dead Letter Queue) ====================
+
+  /**
+   * Creates a failed assignment record for manual recovery.
+   * @async
+   * @param params - The failed assignment details
+   * @returns The result of the insert operation or null
+   */
+  public async createFailedAssignment(params: {
+    eventId: string;
+    userId: string;
+    eventName: string;
+    userName: string;
+    failureReason: string;
+    attemptCount: number;
+  }) {
+    const result = await this.db.insert(schema.failedAssignments).values({
+      eventId: params.eventId,
+      userId: params.userId,
+      eventName: params.eventName,
+      userName: params.userName,
+      failureReason: params.failureReason,
+      attemptCount: params.attemptCount,
+    });
+    return result[0] || null;
+  }
+
+  /**
+   * Finds all failed assignments, optionally filtered by event ID.
+   * @async
+   * @param eventId - Optional event ID to filter by
+   * @returns Array of failed assignment records
+   */
+  public async findFailedAssignments(
+    eventId?: string,
+  ): Promise<FailedAssignmentDBEntry[]> {
+    if (eventId) {
+      return await this.db
+        .select()
+        .from(schema.failedAssignments)
+        .where(eq(schema.failedAssignments.eventId, eventId));
+    }
+    return await this.db.select().from(schema.failedAssignments);
+  }
+
+  /**
+   * Deletes a failed assignment by its ID.
+   * @async
+   * @param id - The ID of the failed assignment to delete
+   * @returns The result of the delete operation
+   */
+  public async deleteFailedAssignment(id: number) {
+    const result = await this.db
+      .delete(schema.failedAssignments)
+      .where(eq(schema.failedAssignments.id, id));
+    return result[0] || null;
+  }
+
+  /**
+   * Deletes all failed assignments for a specific event.
+   * Used during event cleanup to remove stale records.
+   * @async
+   * @param eventId - The event ID to delete failed assignments for
+   * @returns The result of the delete operation
+   */
+  public async deleteFailedAssignmentsByEvent(eventId: string) {
+    const result = await this.db
+      .delete(schema.failedAssignments)
+      .where(eq(schema.failedAssignments.eventId, eventId));
     return result[0] || null;
   }
 }

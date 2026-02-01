@@ -22,7 +22,7 @@ export class ScheduledEventsServiceError extends Error {
     override cause?: unknown,
   ) {
     super(message);
-    this.name = 'ScheduleEventsServiceError'
+    this.name = 'ScheduledEventsServiceError'
 
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ScheduledEventsServiceError)
@@ -36,6 +36,17 @@ export class ScheduledEventsServiceError extends Error {
 export interface ProcessEventResult {
   event: GuildScheduledEvent | null;
   error?: Error;
+}
+
+/**
+ * Result type for event cleanup operations
+ */
+export interface CleanupEventResult {
+  roleDeleted: boolean;
+  dbEntryDeleted: boolean;
+  queueCleared: boolean;
+  failedAssignmentsCleared: boolean;
+  errors: string[];
 }
 
 /**
@@ -53,9 +64,11 @@ export class ScheduledEventsService {
   public async processEvent(
     scheduledEvent: GuildScheduledEvent,
   ): Promise<GuildScheduledEvent> {
-    /**
-     * 
-     */
+    // We primarily catch errors to add additional context for logging.
+    // Error handling flow:
+    // - Validation errors: throw SheduledEventServiceError immediately
+    // - Event already in db means it was already processed: return early
+    // - Role creation fails: Discord.js error, wrap error to add more context
     const { database, customRoleQueue } = container;
     if (!scheduledEvent.guild) {
       throw new ScheduledEventsServiceError(
@@ -125,10 +138,11 @@ export class ScheduledEventsService {
         const processedEvent = await this.processEvent(event);
         results.push({ event: processedEvent });
       } catch (error) {
-        this.logger.warn(
-          `Failed to process a scheduled event ${yellow(event.name)}[${cyan(event.id)}] in the scheduled events service.`,
+        // Catch here to continue with other events in this batch operation
+        // Include the failed event in result
+        this.logger.error(
+          `Failed to process a scheduled event ${yellow(event.name)}[${cyan(event.id)}] in batch operation.`, error
         );
-        this.logger.error(error);
         results.push({
           event: null,
           error: error instanceof Error ? error : new Error(String(error))
@@ -147,6 +161,109 @@ export class ScheduledEventsService {
     const { database } = container;
     const dbEvent = await database.findScheduledEvent(eventId);
     return dbEvent?.roleId || null;
+  }
+
+  /**
+   * Cleans up a scheduled event by removing its role, database entry, and queue entries.
+   * This is called when an event is deleted or completed.
+   * @param scheduledEvent - The Discord scheduled event to clean up
+   * @param reason - The reason for cleanup (shown in Discord audit log)
+   * @returns Promise resolving to a CleanupEventResult indicating what was cleaned up
+   */
+  public async cleanupEvent(
+    scheduledEvent: GuildScheduledEvent,
+    reason: string,
+  ): Promise<CleanupEventResult> {
+    const { database, customRoleQueue } = container;
+    const result: CleanupEventResult = {
+      roleDeleted: false,
+      dbEntryDeleted: false,
+      queueCleared: false,
+      failedAssignmentsCleared: false,
+      errors: [],
+    };
+
+    // 1. Clear the role assignment queue
+    try {
+      customRoleQueue.clearEventQueue(scheduledEvent);
+      result.queueCleared = true;
+    } catch (error) {
+      result.errors.push(`Failed to clear queue: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // 2. Clear any failed assignments for this event
+    try {
+      await database.deleteFailedAssignmentsByEvent(scheduledEvent.id);
+      result.failedAssignmentsCleared = true;
+    } catch (error) {
+      result.errors.push(`Failed to clear failed assignments: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // 3. Find the database entry
+    let dbEntry;
+    try {
+      dbEntry = await database.findScheduledEvent(scheduledEvent.id);
+      if (!dbEntry) {
+        this.logger.warn(
+          `No database entry found for scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}]. ` +
+          `Skipping role and database cleanup.`,
+        );
+        return result;
+      }
+    } catch (error) {
+      result.errors.push(`Failed to find database entry: ${error instanceof Error ? error.message : String(error)}`);
+      return result;
+    }
+
+    // 4. Delete the role if it exists
+    if (scheduledEvent.guild) {
+      try {
+        const role = await scheduledEvent.guild.roles.fetch(dbEntry.roleId);
+        if (role) {
+          await role.delete(reason);
+          result.roleDeleted = true;
+          this.logger.info(
+            `Deleted role ${yellow(role.name)} associated with scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+          );
+        } else {
+          this.logger.info(
+            `Role with ID ${dbEntry.roleId} not found for event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}]. ` +
+            `Role may have been manually deleted.`,
+          );
+        }
+      } catch (error) {
+        result.errors.push(`Failed to delete role: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.error(
+          `Discord API failed to delete role with ID ${dbEntry.roleId} for event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+          error,
+        );
+      }
+    } else {
+      result.errors.push('Guild not available from scheduled event');
+    }
+
+    // 5. Delete the database entry (always attempt this, even if role deletion failed)
+    try {
+      const deleteResult = await database.deleteScheduledEvent(scheduledEvent.id);
+      if (deleteResult && deleteResult.affectedRows > 0) {
+        result.dbEntryDeleted = true;
+        this.logger.info(
+          `Deleted database entry for scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+        );
+      } else {
+        this.logger.warn(
+          `No database entry was deleted for scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+        );
+      }
+    } catch (error) {
+      result.errors.push(`Failed to delete database entry: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Failed to delete database entry for scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
+        error,
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -169,8 +286,7 @@ export class ScheduledEventsService {
       let freqString = ['Yearly', 'Monthly', 'Weekly', 'Daily'];
       name = `${reasonableTruncate(scheduledEvent.name)} [${freqString[frequency]}]`;
     }
-    // Let Discord.js errors propagate naturally.
-    // Caller will catch and wrap with event context
+
     return await scheduledEvent.guild!.roles.create({
       name: name,
       mentionable: true,

@@ -16,6 +16,7 @@ type customRoleQueuesProp = {
   user: User;
   attempts: number;
   maxAttempts: number;
+  lastFailureReason?: string;
 };
 
 /**
@@ -82,7 +83,7 @@ export class CustomRoleQueue {
 
     const index = queue.findIndex((item) => item.user.id === user.id);
     if (index !== -1) {
-      queue.slice(index, 1);
+      queue.splice(index, 1);
       container.client.logger.info(
         `Removed pending user ${yellow(user.username)}[${cyan(user.id)}] from the role assignment queue for scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}]`,
       );
@@ -114,6 +115,35 @@ export class CustomRoleQueue {
   }
 
   /**
+   * Persists a failed assignment to the database dead letter queue.
+   * @private
+   * @async
+   * @param item - The queue item that failed
+   */
+  private async persistFailedAssignment(item: customRoleQueuesProp): Promise<void> {
+    const { database, client } = container;
+    try {
+      await database.createFailedAssignment({
+        eventId: item.scheduledEvent.id,
+        userId: item.user.id,
+        eventName: item.scheduledEvent.name,
+        userName: item.user.username,
+        failureReason: item.lastFailureReason || 'Unknown failure',
+        attemptCount: item.attempts,
+      });
+      client.logger.warn(
+        `Persisted failed assignment for user ${yellow(item.user.username)}[${cyan(item.user.id)}] ` +
+        `to dead letter queue for manual recovery.`,
+      );
+    } catch (error) {
+      client.logger.error(
+        `Failed to persist failed assignment to database for user ${yellow(item.user.username)}[${cyan(item.user.id)}]`,
+        error,
+      );
+    }
+  }
+
+  /**
    * Processes all queued enrollments
    * @private
    * @async
@@ -135,17 +165,13 @@ export class CustomRoleQueue {
           // Increment attempt and then skip the entry
           for (const item of queue) {
             item.attempts++;
-            // Once max attempts is hit, log failure and remove from queue
-            // TODO: Not the perfect solution, but removing from queue after hitting
-            // max attempts will prevent continuous queries to the database. However, we
-            // need to record somewhere, other than the logs, who didn't get processed
-            // for a role. At this current point, removing them from the queue
-            // means they just never get the role.
+            item.lastFailureReason = 'Database entry for scheduled event not found';
+            // Once max attempts is hit, persist to dead letter queue and remove from queue
             if (item.attempts >= item.maxAttempts) {
               client.logger.error(
                 `Failed to assign a custom role to user ${yellow(item.user.username)}[${cyan(item.user.id)}] for scheduled event ${yellow(item.scheduledEvent.name)}[${cyan(item.scheduledEvent.id)}]`,
-                `\nRemoving ${yellow(item.user.username)}[${cyan(item.user.id)}] from custom role assignment queue`,
               );
+              await this.persistFailedAssignment(item);
               const index = queue.indexOf(item);
               if (index > -1) queue.splice(index, 1);
             }
@@ -153,35 +179,52 @@ export class CustomRoleQueue {
           continue;
         }
 
-        // Errors in finding the guild, role, or member does not increment the attempts count.
-        // Only increments when the db entry isn't found.
+        // Process each user in the queue for this event
         for (const item of queue) {
           const { scheduledEvent, user } = item;
           try {
             if (!scheduledEvent.guild) {
+              item.attempts++;
+              item.lastFailureReason = 'Guild not found from scheduled event';
               client.logger.error(
                 `Failed to find guild from scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
-                '\nCannot proceed with custom role assignment for member.',
               );
-              continue; // Skip item since it failed to find a guild
+              if (item.attempts >= item.maxAttempts) {
+                await this.persistFailedAssignment(item);
+                const index = queue.indexOf(item);
+                if (index > -1) queue.splice(index, 1);
+              }
+              continue;
             }
 
             const role = await scheduledEvent.guild.roles.fetch(dbEvent.roleId);
             if (!role) {
+              item.attempts++;
+              item.lastFailureReason = `Role with ID ${dbEvent.roleId} not found`;
               client.logger.error(
-                `Failed to find role associated with scheduled event ${yellow(scheduledEvent.name)} \(${yellow(scheduledEvent.id)}\).`,
-                '\nCannot proceed with custom role assignment for member.',
+                `Failed to find role associated with scheduled event ${yellow(scheduledEvent.name)}[${cyan(scheduledEvent.id)}].`,
               );
-              continue; // skip item since it failed to find role
+              if (item.attempts >= item.maxAttempts) {
+                await this.persistFailedAssignment(item);
+                const index = queue.indexOf(item);
+                if (index > -1) queue.splice(index, 1);
+              }
+              continue;
             }
 
             const member = await scheduledEvent.guild.members.fetch(user.id);
             if (!member) {
+              item.attempts++;
+              item.lastFailureReason = `Member with ID ${user.id} not found in guild`;
               client.logger.error(
-                `Failed to find member in guild (${yellow(scheduledEvent.guild.name)})[${cyan(scheduledEvent.guild.id)}] from user ${yellow(user.username)}[${cyan(user.id)}]`,
-                '\nCannot proceed with custom role assignment for member.',
+                `Failed to find member in guild ${yellow(scheduledEvent.guild.name)}[${cyan(scheduledEvent.guild.id)}] from user ${yellow(user.username)}[${cyan(user.id)}]`,
               );
-              continue; // skip item since it failed to find member
+              if (item.attempts >= item.maxAttempts) {
+                await this.persistFailedAssignment(item);
+                const index = queue.indexOf(item);
+                if (index > -1) queue.splice(index, 1);
+              }
+              continue;
             }
 
             await member.roles.add(role);
@@ -192,7 +235,17 @@ export class CustomRoleQueue {
             const index = queue.indexOf(item);
             if (index > -1) queue.splice(index, 1);
           } catch (error) {
-            client.logger.error(error);
+            item.attempts++;
+            item.lastFailureReason = error instanceof Error ? error.message : String(error);
+            client.logger.error(
+              `Error processing role assignment for ${yellow(user.username)}[${cyan(user.id)}]:`,
+              error,
+            );
+            if (item.attempts >= item.maxAttempts) {
+              await this.persistFailedAssignment(item);
+              const index = queue.indexOf(item);
+              if (index > -1) queue.splice(index, 1);
+            }
           }
         }
       }
