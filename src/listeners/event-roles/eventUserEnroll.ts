@@ -30,7 +30,7 @@ export class OnEventUserEnroll extends Listener {
       name: "EventUserEnroll",
       event: Events.GuildScheduledEventUserAdd,
     });
-    this.logger = createListenerLogger(Events.GuildScheduledEventUserRemove, this.name)
+    this.logger = createListenerLogger(Events.GuildScheduledEventUserAdd, this.name)
 
   }
 

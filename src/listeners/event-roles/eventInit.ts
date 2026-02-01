@@ -75,16 +75,18 @@ export class EventInit extends Listener {
       }
 
       // Get the role ID from the database
-      const roleId = await scheduledEventsService.getEventRoleId(event.id)
-        .catch(error => {
-          this.logger.error(`The database could not find a role ID for the scheduled event ${yellow(event.name)}[${cyan(event.id)}]`, error)
-          return null;
-        })
-      if (!roleId) {
-        this.logger.error(
-          `Failed to find role ID for scheduled event ${yellow(event.name)}[${cyan(event.id)}].`,
-          'Skipping this event for event initialization.',
-        );
+      let roleId;
+      try {
+        roleId = await scheduledEventsService.getEventRoleId(event.id);
+        if (!roleId) {
+          this.logger.error(
+            `Failed to find role ID for scheduled event ${yellow(event.name)}[${cyan(event.id)}].`,
+            'Skipping this event for event initialization.',
+          );
+          continue;
+        }
+      } catch (error) {
+        this.logger.error(`The database could not find a role ID for the scheduled event ${yellow(event.name)}[${cyan(event.id)}]. Skipping this event.`, error)
         continue;
       }
 
@@ -92,16 +94,17 @@ export class EventInit extends Listener {
       try {
         subscribers = await event.fetchSubscribers({ withMember: true })
         if (!subscribers) {
-          this.logger.error(`Failed to get a list of subscribers for scheduled event ${yellow(event.name)}[${cyan(event.id)}]`, "Skipping this event for event initialization.")
+          this.logger.error(`Failed to get a list of subscribers for scheduled event ${yellow(event.name)}[${cyan(event.id)}]. Skipping this event.`)
           continue;
         }
         if (subscribers.size === 0) {
-          this.logger.info(`The scheduled event ${yellow(event.name)}[${cyan(event.id)}] has no subscribers, skipping.`, 'Skipping this event for event initialization.',
+          this.logger.info(`The scheduled event ${yellow(event.name)}[${cyan(event.id)}] has no subscribers. Skipping this event.`,
           )
           continue;
         }
       } catch (error) {
-        return this.logger.error(`Discord API failed to fetch the subscribers for the event scheduled event ${yellow(event.name)}[${cyan(event.id)}].`, error)
+        this.logger.error(`Discord API failed to fetch the subscribers for the event scheduled event ${yellow(event.name)}[${cyan(event.id)}]. Skipping this event.`, error)
+        continue;
       }
       for (const [_userID, subscriber] of subscribers) {
         let { member } = subscriber;

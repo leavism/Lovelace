@@ -21,19 +21,19 @@ export class LovelaceLogger implements ILogger {
   }
 
   public info(message: unknown, ...values: readonly unknown[]): void {
-    this.baseLogger.debug(this.formatMessage(message), ...values)
+    this.baseLogger.info(this.formatMessage(message), ...values)
   }
 
   public warn(message: unknown, ...values: readonly unknown[]): void {
-    this.baseLogger.debug(this.formatMessage(message), ...values)
+    this.baseLogger.warn(this.formatMessage(message), ...values)
   }
 
   public error(message: unknown, ...values: readonly unknown[]): void {
-    this.baseLogger.debug(this.formatMessage(message), ...values)
+    this.baseLogger.error(this.formatMessage(message), ...values)
   }
 
   public fatal(message: unknown, ...values: readonly unknown[]): void {
-    this.baseLogger.debug(this.formatMessage(message), ...values)
+    this.baseLogger.fatal(this.formatMessage(message), ...values)
   }
 
   public write(level: LogLevel, ...values: readonly unknown[]): void {
